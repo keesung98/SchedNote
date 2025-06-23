@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SchedNote - 마크다운 기반 WBS 일정 관리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .notion-sidebar {
+            background: rgb(247, 247, 245);
+            border-right: 1px solid rgb(233, 233, 231);
+        }
+        
+        .notion-content {
+            background: white;
+        }
+        
+        .notion-hover {
+            transition: background-color 0.1s ease;
+        }
+        
+        .notion-hover:hover {
+            background-color: rgb(55, 53, 47, 0.08);
+        }
+        
+        .notion-task-item {
+            border: 1px solid transparent;
+            transition: all 0.1s ease;
+        }
+        
+        .notion-task-item:hover {
+            background-color: rgb(55, 53, 47, 0.03);
+            border-color: rgb(55, 53, 47, 0.16);
+        }
+        
+        .notion-breadcrumb {
+            color: rgb(120, 119, 116);
+            font-size: 14px;
+        }
+        
+        .notion-title {
+            color: rgb(55, 53, 47);
+            font-weight: 700;
+            font-size: 40px;
+            line-height: 1.2;
+            margin: 0;
+        }
+        
+        .notion-subtitle {
+            color: rgb(120, 119, 116);
+            font-size: 16px;
+            margin-top: 4px;
+        }
+        
+        .notion-property {
+            background: rgb(242, 241, 238);
+            border-radius: 3px;
+            padding: 0 6px;
+            font-size: 14px;
+            color: rgb(55, 53, 47);
+        }
+        
+        .notion-tag {
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .status-pending { background: rgb(221, 225, 230); color: rgb(73, 83, 94); }
+        .status-progress { background: rgb(211, 229, 239); color: rgb(24, 81, 109); }
+        .status-completed { background: rgb(219, 237, 219); color: rgb(28, 56, 41); }
+        .priority-high { background: rgb(255, 226, 221); color: rgb(93, 23, 21); }
+        .priority-medium { background: rgb(254, 240, 199); color: rgb(89, 74, 18); }
+        .priority-low { background: rgb(219, 237, 219); color: rgb(28, 56, 41); }
+        
+        .notion-divider {
+            border-top: 1px solid rgb(233, 233, 231);
+            margin: 1px 0;
+        }
+        
+        .notion-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        
+        .progress-bar {
+            height: 4px;
+            background: rgb(242, 241, 238);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: rgb(35, 131, 226);
+            transition: width 0.3s ease;
+        }
+        
+        .notion-button {
+            background: rgb(55, 53, 47);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 6px 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+        
+        .notion-button:hover {
+            background: rgb(55, 53, 47, 0.8);
+        }
+        
+        .notion-secondary-button {
+            background: transparent;
+            color: rgb(55, 53, 47);
+            border: 1px solid rgb(55, 53, 47, 0.16);
+            border-radius: 3px;
+            padding: 6px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+        
+        .notion-secondary-button:hover {
+            background: rgb(55, 53, 47, 0.05);
+        }
+        
+        .notion-input {
+            border: 1px solid rgb(55, 53, 47, 0.16);
+            border-radius: 3px;
+            padding: 8px 12px;
+            font-size: 14px;
+            background: white;
+            transition: all 0.1s ease;
+        }
+        
+        .notion-input:focus {
+            outline: none;
+            border-color: rgb(35, 131, 226);
+            box-shadow: 0 0 0 1px rgb(35, 131, 226);
+        }
+    </style>
+</head>
+<body class="bg-white overflow-hidden">
+    <div class="flex h-screen">
+        <!-- 사이드바 -->
+        <div class="w-64 notion-sidebar flex flex-col">
+            <!-- 사이드바 헤더 -->
+            <div class="p-4 border-b border-gray-200">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-2xl">📋</span>
+                    <span class="font-semibold text-gray-800">SchedNote</span>
+                </div>
+                
+                <!-- 사용자 정보 -->
+                <div class="flex items-center gap-2 p-2 rounded notion-hover cursor-pointer">
+                    <span class="text-lg">👨‍💼</span>
+                    <div class="flex-1">
+                        <div class="text-sm font-medium text-gray-800">김철수</div>
+                        <div class="text-xs text-gray-500">kim@company.com</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 네비게이션 -->
+            <div class="flex-1 p-3">
+                <div class="space-y-1">
+                    <div class="text-xs font-medium text-gray-500 px-2 py-1 uppercase tracking-wide">워크스페이스</div>
+                    
+                    <div class="p-2 rounded notion-hover cursor-pointer bg-white bg-opacity-60">
+                        <div class="flex items-center gap-2">
+                            <span class="notion-icon">📊</span>
+                            <span class="text-sm font-medium">WBS 관리</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 rounded notion-hover cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <span class="notion-icon">📅</span>
+                            <span class="text-sm">간트 차트</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 rounded notion-hover cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <span class="notion-icon">📝</span>
+                            <span class="text-sm">노트</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 rounded notion-hover cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <span class="notion-icon">👥</span>
+                            <span class="text-sm">팀 관리</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="notion-divider my-4"></div>
+                
+                <!-- 프로젝트 목록 -->
+                <div class="space-y-1">
+                    <div class="text-xs font-medium text-gray-500 px-2 py-1 uppercase tracking-wide">프로젝트</div>
+                    
+                    <div class="p-2 rounded notion-hover cursor-pointer bg-white bg-opacity-60">
+                        <div class="flex items-center gap-2">
+                            <span class="notion-icon">🌐</span>
+                            <span class="text-sm font-medium">웹사이트 리뉴얼</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 rounded notion-hover cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <span class="notion-icon">📱</span>
+                            <span class="text-sm">모바일 앱 개발</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 rounded notion-hover cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <span class="notion-icon">⚡</span>
+                            <span class="text-sm">API 성능 개선</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 사이드바 하단 -->
+            <div class="p-3 border-t border-gray-200">
+                <button class="w-full p-2 rounded notion-hover text-sm text-gray-600 flex items-center gap-2">
+                    <span class="notion-icon">➕</span>
+                    <span>새 프로젝트</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 메인 컨텐츠 -->
+        <div class="flex-1 flex flex-col notion-content">
+            <!-- 상단 바 -->
+            <div class="h-12 flex items-center justify-between px-6 border-b border-gray-200">
+                <div class="flex items-center gap-2">
+                    <span class="notion-breadcrumb">SchedNote</span>
+                    <span class="notion-breadcrumb">/</span>
+                    <span class="notion-breadcrumb">웹사이트 리뉴얼 프로젝트</span>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <button class="notion-secondary-button">
+                        <span class="notion-icon">🔔</span>
+                    </button>
+                    <button class="notion-secondary-button">
+                        <span class="notion-icon">⚙️</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 메인 컨텐츠 영역 -->
+            <div class="flex-1 overflow-auto">
+                <div class="max-w-5xl mx-auto p-8">
+                    <!-- 프로젝트 헤더 -->
+                    <div class="mb-8">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="text-5xl">🌐</span>
+                            <h1 class="notion-title">웹사이트 리뉴얼 프로젝트</h1>
+                        </div>
+                        <p class="notion-subtitle">회사 홈페이지 전면 개편 및 성능 최적화</p>
+                        
+                        <!-- 프로젝트 속성 -->
+                        <div class="flex items-center gap-4 mt-4">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-500">상태</span>
+                                <span class="notion-tag status-progress">진행중</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-500">기간</span>
+                                <span class="notion-property">2024.01.15 ~ 2024.03.30</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-500">팀장</span>
+                                <span class="notion-property">김철수</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 필터 및 액션 -->
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <select class="notion-input">
+                                <option>전체 상태</option>
+                                <option>대기중</option>
+                                <option>진행중</option>
+                                <option>완료</option>
+                            </select>
+                            <select class="notion-input">
+                                <option>전체 우선순위</option>
+                                <option>높음</option>
+                                <option>보통</option>
+                                <option>낮음</option>
+                            </select>
+                            <select class="notion-input">
+                                <option>전체 담당자</option>
+                                <option>김철수</option>
+                                <option>이영희</option>
+                                <option>박민수</option>
+                            </select>
+                            <input type="text" placeholder="검색..." class="notion-input w-48">
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <button class="notion-secondary-button">📊 간트 차트</button>
+                            <button class="notion-button">+ 새 작업</button>
+                        </div>
+                    </div>
+                    
+                    <!-- WBS 작업 목록 -->
+                    <div class="space-y-2">
+                        <!-- 주요 작업 1 -->
+                        <div class="notion-task-item rounded-lg p-4">
+                            <div class="flex items-center gap-3">
+                                <button class="notion-icon text-gray-400 hover:text-gray-600">▼</button>
+                                <div class="notion-icon">✅</div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h3 class="font-medium text-gray-900">요구사항 분석</h3>
+                                        <span class="notion-tag priority-high">높음</span>
+                                        <span class="notion-tag status-completed">완료</span>
+                                    </div>
+                                    <div class="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                                        <span>📅 2024.01.15 ~ 2024.01.25</span>
+                                        <span>⏱️ 40시간</span>
+                                        <span>👨‍💼 김철수</span>
+                                    </div>
+                                    <div class="progress-bar mb-2">
+                                        <div class="progress-fill" style="width: 100%"></div>
+                                    </div>
+                                    <div class="text-xs text-gray-400">100% 완료</div>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button class="notion-icon text-gray-400 hover:text-gray-600" title="노트">📝</button>
+                                    <button class="notion-icon text-gray-400 hover:text-gray-600" title="편집">✏️</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 하위 작업들 -->
+                        <div class="ml-8 space-y-2">
+                            <div class="notion-task-item rounded-lg p-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="notion-icon">✅</div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h4 class="text-sm font-medium text-gray-800">사용자 인터뷰</h4>
+                                            <span class="notion-tag priority-medium">보통</span>
+                                            <span class="notion-tag status-completed">완료</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-gray-500">
+                                            <span>📅 01.15 ~ 01.20</span>
+                                            <span>⏱️ 20h</span>
+                                            <span>👩‍💼 이영희</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">📝</button>
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">✏️</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="notion-task-item rounded-lg p-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="notion-icon">✅</div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h4 class="text-sm font-medium text-gray-800">경쟁사 분석</h4>
+                                            <span class="notion-tag priority-medium">보통</span>
+                                            <span class="notion-tag status-completed">완료</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-gray-500">
+                                            <span>📅 01.20 ~ 01.25</span>
+                                            <span>⏱️ 20h</span>
+                                            <span>👨‍💼 김철수</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">📝</button>
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">✏️</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 주요 작업 2 -->
+                        <div class="notion-task-item rounded-lg p-4">
+                            <div class="flex items-center gap-3">
+                                <button class="notion-icon text-gray-400 hover:text-gray-600">▼</button>
+                                <div class="notion-icon">🔄</div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h3 class="font-medium text-gray-900">UI/UX 디자인</h3>
+                                        <span class="notion-tag priority-high">높음</span>
+                                        <span class="notion-tag status-progress">진행중</span>
+                                    </div>
+                                    <div class="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                                        <span>📅 2024.01.26 ~ 2024.02.15</span>
+                                        <span>⏱️ 80시간</span>
+                                        <span>👩‍💼 이영희</span>
+                                    </div>
+                                    <div class="progress-bar mb-2">
+                                        <div class="progress-fill" style="width: 65%"></div>
+                                    </div>
+                                    <div class="text-xs text-gray-400">65% 완료</div>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button class="notion-icon text-gray-400 hover:text-gray-600" title="노트">📝</button>
+                                    <button class="notion-icon text-gray-400 hover:text-gray-600" title="편집">✏️</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 하위 작업들 -->
+                        <div class="ml-8 space-y-2">
+                            <div class="notion-task-item rounded-lg p-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="notion-icon">✅</div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h4 class="text-sm font-medium text-gray-800">와이어프레임 작성</h4>
+                                            <span class="notion-tag priority-high">높음</span>
+                                            <span class="notion-tag status-completed">완료</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-gray-500">
+                                            <span>📅 01.26 ~ 02.01</span>
+                                            <span>⏱️ 30h</span>
+                                            <span>👩‍💼 이영희</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">📝</button>
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">✏️</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="notion-task-item rounded-lg p-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="notion-icon">🔄</div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h4 class="text-sm font-medium text-gray-800">프로토타입 제작</h4>
+                                            <span class="notion-tag priority-medium">보통</span>
+                                            <span class="notion-tag status-progress">진행중</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                                            <span>📅 02.01 ~ 02.10</span>
+                                            <span>⏱️ 35h</span>
+                                            <span>👩‍💼 이영희</span>
+                                        </div>
+                                        <div class="progress-bar mb-1">
+                                            <div class="progress-fill" style="width: 70%"></div>
+                                        </div>
+                                        <div class="text-xs text-gray-400">70% 완료</div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">📝</button>
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">✏️</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="notion-task-item rounded-lg p-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="notion-icon">⏸️</div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h4 class="text-sm font-medium text-gray-800">디자인 시스템 구축</h4>
+                                            <span class="notion-tag priority-low">낮음</span>
+                                            <span class="notion-tag status-pending">대기중</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-gray-500">
+                                            <span>📅 02.10 ~ 02.15</span>
+                                            <span>⏱️ 15h</span>
+                                            <span>👩‍💼 이영희</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">📝</button>
+                                        <button class="notion-icon text-gray-400 hover:text-gray-600">✏️</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 주요 작업 3 -->
+                        <div class="notion-task-item rounded-lg p-4">
+                            <div class="flex items-center gap-3">
+                                <button class="notion-icon text-gray-400 hover:text-gray-600">▶</button>
+                                <div class="notion-icon">⏸️</div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h3 class="font-medium text-gray-900">프론트엔드 개발</h3>
+                                        <span class="notion-tag priority-high">높음</span>
+                                        <span class="notion-tag status-pending">대기중</span>
+                                    </div>
+                                    <div class="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                                        <span>📅 2024.02.16 ~ 2024.03.15</span>
+                                        <span>⏱️ 120시간</span>
+                                        <span>👨‍💻 박민수</span>
+                                    </div>
+                                    <div class="progress-bar mb-2">
+                                        <div class="progress-fill" style="width: 0%"></div>
+                                    </div>
+                                    <div class="text-xs text-gray-400">0% 완료</div>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button class="notion-icon text-gray-400 hover:text-gray-600" title="노트">📝</button>
+                                    <button class="notion-icon text-gray-400 hover:text-gray-600" title="편집">✏️</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 새 작업 추가 버튼 -->
+                    <div class="mt-6">
+                        <button class="flex items-center gap-2 p-3 w-full text-left notion-hover rounded-lg text-gray-500">
+                            <span class="notion-icon">➕</span>
+                            <span class="text-sm">새 작업 추가</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 간단한 인터랙션
+        document.addEventListener('DOMContentLoaded', function() {
+            // 작업 확장/축소
+            const expandButtons = document.querySelectorAll('.notion-task-item button[title*="▼"], .notion-task-item button[title*="▶"]');
+            expandButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const icon = this.textContent;
+                    this.textContent = icon === '▼' ? '▶' : '▼';
+                });
+            });
+            
+            // 호버 효과
+            const taskItems = document.querySelectorAll('.notion-task-item');
+            taskItems.forEach(item => {
+                item.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-1px)';
+                    this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                });
+                
+                item.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = 'none';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
