@@ -1,0 +1,2 @@
+# SchedNote
+electron project
